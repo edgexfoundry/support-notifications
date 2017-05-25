@@ -1,0 +1,25 @@
+The following open source projects are referenced by Support Notifications:
+
+Spring Cloud (Apache 2.0) - http://projects.spring.io/spring-cloud/
+https://github.com/spring-cloud/spring-cloud-release/blob/master/LICENSE.txt
+
+Spring Boot (Apache 2.0) - https://projects.spring.io/spring-boot/
+https://github.com/spring-projects/spring-boot/blob/master/LICENSE.txt
+
+Spring Framework (Apache 2.0) - http://projects.spring.io/spring-framework/
+https://github.com/spring-projects/spring-framework
+
+Spock Framework (Apache 2.0) - http://spockframework.org/
+https://github.com/spockframework/spock/blob/master/LICENSE
+
+Groovy (Apache 2.0) - http://groovy-lang.org/
+https://github.com/apache/groovy/blob/master/LICENSE
+
+cglib (Apache 2.0) - https://github.com/cglib/cglib
+https://github.com/cglib/cglib/blob/master/LICENSE
+
+Objenesis (Apache 2.0) - http://objenesis.org/
+http://objenesis.org/license.html
+
+Spock Reports (Apache 2.0) - https://libraries.io/github/renatoathaydes/spock-reports
+https://libraries.io/github/renatoathaydes/spock-reports
