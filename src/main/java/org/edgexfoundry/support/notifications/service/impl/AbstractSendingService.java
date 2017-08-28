@@ -1,22 +1,21 @@
 /*******************************************************************************
  * Copyright 2016-2017 Dell Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
  *
  * http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
  *
- * @microservice:  support-notifications
+ * @microservice: support-notifications
  * @author: Cloud Tsai, Dell
  * @version: 1.0.0
  *******************************************************************************/
+
 package org.edgexfoundry.support.notifications.service.impl;
 
 import java.util.ArrayList;
@@ -27,6 +26,7 @@ import org.edgexfoundry.exception.controller.DataValidationException;
 import org.edgexfoundry.exception.controller.ServiceException;
 import org.edgexfoundry.support.domain.notifications.Channel;
 import org.edgexfoundry.support.domain.notifications.Notification;
+import org.edgexfoundry.support.domain.notifications.NotificationSeverity;
 import org.edgexfoundry.support.domain.notifications.NotificationStatus;
 import org.edgexfoundry.support.domain.notifications.Transmission;
 import org.edgexfoundry.support.domain.notifications.TransmissionRecord;
@@ -43,131 +43,129 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 public abstract class AbstractSendingService implements SendingService {
 
-	//private final Logger logger = LoggerFactory.getLogger(this.getClass());
-	//replace above logger with EdgeXLogger below
-	private final org.edgexfoundry.support.logging.client.EdgeXLogger logger = 
-			org.edgexfoundry.support.logging.client.EdgeXLoggerFactory.getEdgeXLogger(this.getClass());
+  private final org.edgexfoundry.support.logging.client.EdgeXLogger logger =
+      org.edgexfoundry.support.logging.client.EdgeXLoggerFactory.getEdgeXLogger(this.getClass());
 
-	@Autowired
-	private TransmissionDAO transmissionDAO;
+  @Autowired
+  private TransmissionDAO transmissionDAO;
 
-	@Autowired
-	private EscalationService escalationService;
+  @Autowired
+  private EscalationService escalationService;
 
-	@Autowired
-	private ThreadPoolTaskScheduler scheduler;
+  @Autowired
+  private ThreadPoolTaskScheduler scheduler;
 
-	@Autowired
-	private GeneralConfig generalConfig;
+  @Autowired
+  private GeneralConfig generalConfig;
 
-	@Value("${application.scheduler.critical.resend.duration}")
-	private long criticalResendDuration;
+  @Value("${application.scheduler.critical.resend.duration}")
+  private long criticalResendDuration;
 
-	@Async
-	@Override
-	public void send(Notification notification, Channel channel, String receiver) {
-		this.checkParameters(notification, channel);
+  @Async
+  @Override
+  public void send(Notification notification, Channel channel, String receiver) {
+    this.checkParameters(notification, channel);
 
-		TransmissionRecord record = sendToReceiver(notification, channel);
-		Transmission transmission = new Transmission();
-		transmission.setNotification(notification);
-		transmission.setReceiver(receiver);
-		transmission.setChannel(channel);
-		transmission.setResendCount(0);
-		transmission.setStatus(record.getStatus());
-		transmission.setRecords(new TransmissionRecord[] { record });
+    TransmissionRecord record = sendToReceiver(notification, channel);
+    Transmission transmission = new Transmission();
+    transmission.setNotification(notification);
+    transmission.setReceiver(receiver);
+    transmission.setChannel(channel);
+    transmission.setResendCount(0);
+    transmission.setStatus(record.getStatus());
+    transmission.setRecords(new TransmissionRecord[] {record});
 
-		try {
-			transmission = transmissionDAO.insert(transmission);
-		} catch (Exception e) {
-			logger.error("transmission cannot be persisted: " + transmission.toString());
-			logger.error(e.getMessage(), e);
-			throw new ServiceException(e);
-		}
+    try {
+      transmission = transmissionDAO.insert(transmission);
+    } catch (Exception e) {
+      logger.error("transmission cannot be persisted: " + transmission.toString());
+      logger.error(e.getMessage(), e);
+      throw new ServiceException(e);
+    }
 
-		handleFailedTransmission(transmission);
-	}
+    handleFailedTransmission(transmission);
+  }
 
-	private void handleFailedTransmission(Transmission transmission) {
-		Notification notification = transmission.getNotification();
-		if (transmission.getStatus() == TransmissionStatus.FAILED
-				&& notification.getStatus() != NotificationStatus.ESCALATED) {
-			switch (notification.getSeverity()) {
-			case CRITICAL:
-				if (transmission.getResendCount() < generalConfig.getResendLimit()) {
-					scheduler.schedule(new CriticalSeverityResendTask(transmission, this),
-							new Date(System.currentTimeMillis() + criticalResendDuration));
-				} else {
-					doEscalation(transmission);
-				}
-				break;
-			case NORMAL:
-				GlobalVariables.getInstance().setTheLatestNormalTransmissionFailed(transmission.getModified());
-				break;
-			}
-		}
-	}
+  @Async
+  @Override
+  public void resend(Transmission transmission) {
+    this.checkParameters(transmission);
 
-	private void doEscalation(Transmission transmission) {
-		logger.warn("This transmission is escalated: " + transmission);
-		escalationService.escalate(transmission);
+    TransmissionRecord record =
+        sendToReceiver(transmission.getNotification(), transmission.getChannel());
+    transmission.inreaseResendCount();
+    transmission.setStatus(record.getStatus());
+    transmission.setRecords(addNewRecordToArray(transmission.getRecords(), record));
 
-		transmission.setStatus(TransmissionStatus.ESCALATED);
-		transmission = transmissionDAO.save(transmission);
-	}
+    try {
+      transmission = transmissionDAO.save(transmission);
+    } catch (Exception e) {
+      logger.error("transmission cannot be updated: " + transmission.toString());
+      logger.error(e.getMessage(), e);
+      throw new ServiceException(e);
+    }
 
-	protected void checkParameters(Notification notification, Channel channel) {
-		if (notification == null) {
-			logger.error(this.getClass().toString() + " received a null notification");
-			throw new DataValidationException("Notification is null");
-		}
+    handleFailedTransmission(transmission);
+  }
+  
+  private void handleFailedTransmission(Transmission transmission) {
+    Notification notification = transmission.getNotification();
+    if (transmission.getStatus() == TransmissionStatus.FAILED
+        && notification.getStatus() != NotificationStatus.ESCALATED) {
+      if (notification.getSeverity() == NotificationSeverity.CRITICAL) {
+        if (transmission.getResendCount() < generalConfig.getResendLimit()) {
+          scheduler.schedule(new CriticalSeverityResendTask(transmission, this),
+              new Date(System.currentTimeMillis() + criticalResendDuration));
+        } else {
+          doEscalation(transmission);
+        }
+      } else if (notification.getSeverity() == NotificationSeverity.NORMAL) {
+        GlobalVariables.getInstance()
+            .setTheLatestNormalTransmissionFailed(transmission.getModified());
+      }
+    }
+  }
 
-		if (channel == null) {
-			logger.error(this.getClass().toString() + " got a null channel");
-			throw new DataValidationException("Channel is null");
-		}
-	}
+  private void doEscalation(Transmission transmission) {
+    logger.warn("This transmission is escalated: " + transmission);
+    escalationService.escalate(transmission);
 
-	@Async
-	@Override
-	public void resend(Transmission transmission) {
-		this.checkParameters(transmission);
+    transmission.setStatus(TransmissionStatus.ESCALATED);
+    transmissionDAO.save(transmission);
+  }
 
-		TransmissionRecord record = sendToReceiver(transmission.getNotification(), transmission.getChannel());
-		transmission.inreaseResendCount();
-		transmission.setStatus(record.getStatus());
-		transmission.setRecords(addNewRecordToArray(transmission.getRecords(), record));
+  protected void checkParameters(Notification notification, Channel channel) {
+    if (notification == null) {
+      logger.error(this.getClass().toString() + " received a null notification");
+      throw new DataValidationException("Notification is null");
+    }
 
-		try {
-			transmission = transmissionDAO.save(transmission);
-		} catch (Exception e) {
-			logger.error("transmission cannot be updated: " + transmission.toString());
-			logger.error(e.getMessage(), e);
-			throw new ServiceException(e);
-		}
+    if (channel == null) {
+      logger.error(this.getClass().toString() + " got a null channel");
+      throw new DataValidationException("Channel is null");
+    }
+  }
 
-		handleFailedTransmission(transmission);
-	}
 
-	private void checkParameters(Transmission transmission) {
-		if (transmission == null) {
-			logger.error(this.getClass().toString() + " received a null transmission");
-			throw new DataValidationException("Transmission is null");
-		}
+  private void checkParameters(Transmission transmission) {
+    if (transmission == null) {
+      logger.error(this.getClass().toString() + " received a null transmission");
+      throw new DataValidationException("Transmission is null");
+    }
 
-		this.checkParameters(transmission.getNotification(), transmission.getChannel());
-	}
+    this.checkParameters(transmission.getNotification(), transmission.getChannel());
+  }
 
-	abstract TransmissionRecord sendToReceiver(Notification notification, Channel channel);
+  abstract TransmissionRecord sendToReceiver(Notification notification, Channel channel);
 
-	private TransmissionRecord[] addNewRecordToArray(TransmissionRecord[] originalRecords,
-			TransmissionRecord newRecord) {
-		List<TransmissionRecord> newRecords = new ArrayList<>();
-		for (TransmissionRecord r : originalRecords) {
-			newRecords.add(r);
-		}
-		newRecords.add(newRecord);
-		return newRecords.stream().toArray(TransmissionRecord[]::new);
-	}
+  private TransmissionRecord[] addNewRecordToArray(TransmissionRecord[] originalRecords,
+      TransmissionRecord newRecord) {
+    List<TransmissionRecord> newRecords = new ArrayList<>();
+    for (TransmissionRecord r : originalRecords) {
+      newRecords.add(r);
+    }
+    newRecords.add(newRecord);
+    return newRecords.stream().toArray(TransmissionRecord[]::new);
+  }
 
 }
