@@ -19,6 +19,7 @@
 package org.edgexfoundry.support.notifications.controller.impl;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.web.ErrorAttributes;
 import org.springframework.boot.autoconfigure.web.ErrorController;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,13 +38,16 @@ public class LocalErrorController implements ErrorController {
 
   @Autowired
   private ErrorAttributes errorAttributes;
+  
+  @Value("${print.stacktrace:false}")
+  private boolean printTraces;
 
   @RequestMapping(value = PATH)
   public String error(HttpServletRequest request, HttpServletResponse response) {
     // Appropriate HTTP response code (e.g. 404 or 500) is automatically set
     // by Spring.
     // Here we just define response body.
-    Map<String, Object> errorInfo = getErrorAttributes(request, true);
+    Map<String, Object> errorInfo = getErrorAttributes(request, printTraces);
     return errorInfo.get("message") + "\n\n" + errorInfo.get("trace");
   }
 
