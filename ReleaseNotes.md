@@ -2,7 +2,7 @@
 # Release Notes
 
 ## Notable Changes
-The Barcelona Release (v 0.2) of the Support Logging micro service includes the following:
+The Barcelona Release (v 0.2) of the Support Notification micro service includes the following:
 * Application of Google Style Guidelines to the code base
 * Increase in unit/intergration tests from 0 tests to 241 tests
 * POM changes for appropriate repository information for distribution/repos management, checkstyle plugins, etc.
