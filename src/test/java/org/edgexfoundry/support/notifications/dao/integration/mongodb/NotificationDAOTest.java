@@ -25,7 +25,7 @@ import java.util.List;
 
 import org.edgexfoundry.EdgeXSupportNotificationsApplication;
 import org.edgexfoundry.support.domain.notifications.Notification;
-import org.edgexfoundry.support.notification.test.data.NotificationData;
+import org.edgexfoundry.support.notifications.test.data.NotificationData;
 import org.edgexfoundry.support.notifications.dao.NotificationDAO;
 import org.edgexfoundry.test.category.RequiresMongoDB;
 import org.edgexfoundry.test.category.RequiresSpring;
