@@ -16,17 +16,16 @@
  * @version: 1.0.0
  *******************************************************************************/
 
-package org.edgexfoundry.support.notifications.dao.integration.mongodb;
+package org.edgexfoundry.support.notifications.controller.integration;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.util.List;
-
 import org.edgexfoundry.EdgeXSupportNotificationsApplication;
-import org.edgexfoundry.support.domain.notifications.Subscription;
-import org.edgexfoundry.support.notifications.test.data.SubscriptionData;
-import org.edgexfoundry.support.notifications.dao.SubscriptionDAO;
+import org.edgexfoundry.support.domain.notifications.Notification;
+import org.edgexfoundry.support.notifications.test.data.NotificationData;
+import org.edgexfoundry.support.notifications.controller.CleanupController;
+import org.edgexfoundry.support.notifications.dao.NotificationDAO;
 import org.edgexfoundry.test.category.RequiresMongoDB;
 import org.edgexfoundry.test.category.RequiresSpring;
 import org.edgexfoundry.test.category.RequiresWeb;
@@ -37,6 +36,8 @@ import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.SpringApplicationConfiguration;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.web.WebAppConfiguration;
 
@@ -44,43 +45,47 @@ import org.springframework.test.context.web.WebAppConfiguration;
 @SpringApplicationConfiguration(classes = EdgeXSupportNotificationsApplication.class)
 @WebAppConfiguration("src/test/resources")
 @Category({RequiresMongoDB.class, RequiresSpring.class, RequiresWeb.class})
-public class SubscriptionDAOTest {
+public class CleanupControllerTest {
 
   @Autowired
-  private SubscriptionDAO dao;
-  private String subId;
+  CleanupController controller;
 
-  /**
-   * Create and save an instance of the Notification before each test Note: the before method tests
-   * the save operation of the Repository
-   */
+  @Autowired
+  private NotificationDAO dao;
+  private String noteId;
+
   @Before
-  public void createTestData() {
-    Subscription sub = SubscriptionData.newTestInstance();
-    dao.save(sub);
-    subId = sub.getId();
+  public void setup() {
+    Notification note = NotificationData.newTestInstance();
+    dao.save(note);
+    noteId = note.getId();
   }
 
-  /**
-   * clean up data after tests. The delete operation also tests the delete operation.
-   */
   @After
-  public void destroyTestData() {
-    dao.delete(subId);
+  public void cleanup() {
+    dao.delete(noteId);
     assertTrue("deleted test data still exists in the database", dao.findAll().isEmpty());
   }
 
   @Test
-  public void testfindBySlugIgnoreCase() {
-    SubscriptionData.checkTestData(dao.findBySlugIgnoreCase(SubscriptionData.TEST_SLUG), subId);
+  public void testCleanupOld() throws InterruptedException {
+    assertEquals("One notification should exist in the database", 1, dao.findAll().size());
+    ResponseEntity<Void> resp = controller.cleanupOld();
+    assertEquals("Request to cleanup old requests did not return healthy status",
+        HttpStatus.ACCEPTED, resp.getStatusCode());
+    Thread.sleep(1000); // wait for database eventual consistency
+    assertEquals("No notifications should have been cleaned up", 1, dao.findAll().size());
   }
 
   @Test
-  public void testfindByReceiverLikeIgnoreCase() {
-    List<Subscription> subs = dao.findByReceiverLikeIgnoreCase(SubscriptionData.TEST_REC);
-    assertEquals("Search returned more than expected number of subscriptions", 1, subs.size());
-    SubscriptionData.checkTestData(subs.get(0), subId);
+  public void testCleanup() throws InterruptedException {
+    assertEquals("One notification should exist in the database", 1, dao.findAll().size());
+    ResponseEntity<Void> resp = controller.cleanupOld(-10000); // clean up modified less than 10
+                                                               // seconds from now
+    assertEquals("Request to cleanup old requests did not return healthy status",
+        HttpStatus.ACCEPTED, resp.getStatusCode());
+    Thread.sleep(1000); // wait for database eventual consistency
+    assertTrue("Notifications should have been all removed", dao.findAll().isEmpty());
   }
-
 
 }
